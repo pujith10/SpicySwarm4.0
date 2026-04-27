@@ -1,0 +1,24 @@
+[
+  {
+    "id": "Ablation Study",
+    "query": "How many universities are there in Delhi? Compare that with the count in Bangalore.",
+    "without_critic_answer": "There are 26 universities in Delhi and 22 universities in Bangalore.",
+    "with_critic_answer": "There are over 30 universities in Delhi and 12 universities in Bangalore.",
+    "with_critic_loops": 7,
+    "latency_diff_ms": 44665.879011154175
+  },
+  {
+    "id": "Resilience Test",
+    "query": "Who is the current Prime Minister of India?",
+    "mode": "Simulated Google 404",
+    "status": "SUCCESS",
+    "tier_used": "Groq Fallback",
+    "latency_ms": 6654.908895492554
+  },
+  {
+    "id": "Tool Heterogeneity",
+    "query": "Find the current temperature in Delhi and calculate how much it differs from 30\u00b0C.",
+    "web_results": "YES",
+    "final_answer": ""
+  }
+]

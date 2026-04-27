@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+langchain
+langgraph
+langchain-anthropic
+langchain-community
+faiss-cpu
+sentence-transformers
+neo4j
+redis
+spacy
+pydantic
+python-dotenv
+httpx
+python-docx
+asyncio
+websockets
