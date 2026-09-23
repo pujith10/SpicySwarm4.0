@@ -4,7 +4,8 @@ import {
   Terminal, Search, Cpu, Database, Layout,
   ShieldCheck, AlertCircle, ChevronRight, X,
   FileText, Activity, Clock, Zap, Mic, MicOff,
-  Network, Code, MessageSquare, RefreshCw, Download
+  Network, Code, MessageSquare, RefreshCw, Download,
+  Copy, CheckCircle2
 } from 'lucide-react'
 import {
   ReactFlow,
@@ -21,6 +22,7 @@ import '@xyflow/react/dist/style.css'
 import { useStore } from './store/useStore'
 import './App.css'
 import LoginView from './components/LoginView'
+import ReportViewer from './components/ReportViewer'
 
 // ─────────────────────────────────────────────
 // Agent color config v4.0 Sharp
@@ -259,143 +261,180 @@ function App() {
 }
 
 const FinalReport = ({ data, onClose }) => {
-  const handleDownload = () => {
-    const reportContent = `
-SPICY SWARM 4.0 SHARP - RESEARCH RESOLUTION
-============================================
-Timestamp: ${new Date().toLocaleString()}
-Goal: ${data.query || 'N/A'}
-
-HUMAN UNDERSTANDING
--------------------
-${data.human_resolution || 'No summary available.'}
-
-TECHNICAL GROUND TRUTH
-----------------------
-Final Answer: ${data.final_answer}
-Latency: ${data.latency_ms?.toFixed(0)}ms
-Confidence: 98.4%
-
-TECHNICAL AUDIT TRAIL
----------------------
-${(data.logs || []).map(l => `${l.stage.toUpperCase()}: ${JSON.stringify(l.output)}`).join('\n\n')}
-    `;
-    const blob = new Blob([reportContent], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `SpicySwarm_Report_${Date.now()}.txt`;
-    link.click();
-  };
+  const [showAuditModal, setShowAuditModal] = useState(false);
+  const [selectedStageFilter, setSelectedStageFilter] = useState('ALL');
+  const [copiedIndex, setCopiedIndex] = useState(null);
 
   return (
-  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="report-overlay">
-    <motion.div initial={{ y: 20 }} animate={{ y: 0 }} className="report-modal glass max-w-2xl">
-      <div className="flex justify-between items-center mb-6 pb-4 border-b border-white/10">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-emerald-500/20 rounded-lg text-emerald-400">
-            <ShieldCheck size={20} />
-          </div>
-          <div>
-            <h2 className="text-xl font-black italic uppercase text-white tracking-tight">Research Diagnostic</h2>
-            <div className="text-[8px] uppercase font-bold text-emerald-500 tracking-[0.3em]">HAA v4.0 Sharp · Verified Consensus</div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-            <button 
-                onClick={handleDownload}
-                className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[10px] font-bold text-white uppercase tracking-widest transition-all"
+    <>
+      <ReportViewer
+        data={data}
+        onClose={onClose}
+        onOpenAuditTrail={() => setShowAuditModal(true)}
+      />
+
+      {/* DEDICATED TECHNICAL AUDIT TRAIL WINDOW */}
+      <AnimatePresence>
+        {showAuditModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="report-overlay"
+            style={{ zIndex: 120 }}
+            onClick={() => setShowAuditModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              className="report-modal glass max-w-4xl w-full border border-blue-500/30 shadow-2xl shadow-blue-500/10"
+              onClick={(e) => e.stopPropagation()}
             >
-                <Download size={14} className="text-emerald-400" />
-                Download Report
-            </button>
-            <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full text-slate-400 transition-colors"><X /></button>
-        </div>
-      </div>
-
-      {/* HUMAN UNDERSTANDING SECTION (CHARTGPT STYLE) */}
-      <div className="mb-6 p-6 rounded-2xl bg-white/5 border border-white/10 shadow-2xl relative overflow-hidden">
-         <div className="text-[10px] uppercase font-black text-blue-400 mb-3 tracking-[0.2em] flex items-center gap-2">
-            <MessageSquare size={12} />
-            Human Understanding
-         </div>
-         <div className="text-sm text-slate-200 leading-relaxed font-medium">
-            {data.human_resolution ? (
-                data.human_resolution.split('\n').map((para, i) => (
-                    <p key={i} className="mb-3">{para}</p>
-                ))
-            ) : (
-                <div className="text-slate-500 italic">Distilling swarm wisdom into human narrative...</div>
-            )}
-         </div>
-      </div>
-
-      {/* PROMINENT FINAL ANSWER SECTION */}
-      <div className="mb-8 p-8 rounded-3xl bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/20 relative overflow-hidden group">
-        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-          <Zap size={120} className="text-emerald-400" />
-        </div>
-        <div className="relative z-10">
-          <div className="text-[10px] uppercase font-black text-emerald-500 mb-3 tracking-[0.2em] flex items-center gap-2">
-            <Activity size={12} />
-            Final Consensus Reached
-          </div>
-          <div className="text-3xl font-black text-white leading-tight mb-2 mono">
-            {data.final_answer || "Synthesizing final consensus..."}
-          </div>
-          <div className="text-[10px] text-slate-500 font-bold italic opacity-60">Verified across multiple agent audit loops</div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-4 mb-8">
-        <div className="p-4 bg-white/5 border border-white/10 rounded-2xl">
-          <div className="text-[10px] uppercase text-slate-500 font-black mb-1">Status</div>
-          <div className="text-sm font-black text-emerald-400">SUCCESS</div>
-        </div>
-        <div className="p-4 bg-white/5 border border-white/10 rounded-2xl">
-          <div className="text-[10px] uppercase text-slate-500 font-black mb-1 flex items-center gap-1"><Clock size={10}/> Latency</div>
-          <div className="text-sm font-black text-white mono">{data.latency_ms?.toFixed(0)}ms</div>
-        </div>
-        <div className="p-4 bg-white/5 border border-white/10 rounded-2xl">
-          <div className="text-[10px] uppercase text-slate-500 font-black mb-1">Confidence</div>
-          <div className="text-sm font-black text-blue-400">98.4%</div>
-        </div>
-      </div>
-
-      <div className="space-y-6">
-        <div>
-           <h3 className="text-[10px] uppercase font-black text-amber-500/80 mb-3 tracking-widest flex items-center gap-2">
-             <AlertCircle size={12}/> State Delta (Resolved Gaps)
-           </h3>
-           <div className="flex flex-wrap gap-2">
-             {Array.isArray(data.state_delta || data.execution?.state_delta) ? (
-               (data.state_delta || data.execution?.state_delta).map((gap, i) => (
-                 <span key={i} className="px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full text-[10px] text-amber-200 font-bold uppercase mono">
-                   {gap}
-                 </span>
-               ))
-             ) : (
-               <span className="text-xs text-slate-500 mono italic opacity-60">All structural uncertainties resolved.</span>
-             )}
-           </div>
-        </div>
-
-        <div>
-          <h3 className="text-[10px] uppercase font-black text-slate-500 mb-3 tracking-widest flex items-center gap-2">
-            <Database size={12}/> Technical Audit Trail
-          </h3>
-          <div className="max-h-48 overflow-y-auto space-y-2 pr-2 custom-scroll">
-            {(data.logs || []).map((l, i) => (
-              <div key={i} className="p-3 bg-black/40 rounded-xl border border-white/5 text-[10px] flex gap-3 group transition-all hover:border-emerald-500/30">
-                <span className="text-emerald-400 font-bold uppercase min-w-[80px] text-right border-r border-white/10 pr-3">{l.stage}</span>
-                <span className="text-slate-500 font-mono italic opacity-70 truncate flex-1">{JSON.stringify(l.output)}</span>
+              {/* Header */}
+              <div className="flex justify-between items-center mb-6 pb-4 border-b border-white/10">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-blue-500/20 rounded-xl text-blue-400 border border-blue-500/30">
+                    <Database size={22} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black italic uppercase text-white tracking-tight flex items-center gap-2">
+                      Technical Audit Trail
+                      <span className="text-[10px] font-mono font-bold bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full border border-blue-500/30">
+                        {(data.logs || []).length} STAGES
+                      </span>
+                    </h2>
+                    <div className="text-[9px] uppercase font-bold text-slate-400 tracking-[0.25em]">
+                      Multi-Agent System Telemetry & Execution Traces
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const text = JSON.stringify(data.logs || [], null, 2);
+                      navigator.clipboard.writeText(text);
+                      setCopiedIndex('all');
+                      setTimeout(() => setCopiedIndex(null), 2000);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[10px] font-bold text-slate-300 hover:text-white uppercase tracking-wider transition-all cursor-pointer"
+                  >
+                    <CheckCircle2 size={12} className={copiedIndex === 'all' ? 'text-emerald-400' : 'text-slate-400'} />
+                    {copiedIndex === 'all' ? 'Copied' : 'Copy All JSON'}
+                  </button>
+                  <button
+                    onClick={() => setShowAuditModal(false)}
+                    className="p-2 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  </motion.div>
+
+              {/* Quick Metrics */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                <div className="p-3 bg-white/5 border border-white/10 rounded-xl">
+                  <div className="text-[9px] uppercase text-slate-400 font-bold mb-0.5">Total Cycles</div>
+                  <div className="text-sm font-black text-white mono">{data.cycle_count || 1} Loop(s)</div>
+                </div>
+                <div className="p-3 bg-white/5 border border-white/10 rounded-xl">
+                  <div className="text-[9px] uppercase text-slate-400 font-bold mb-0.5">Execution Latency</div>
+                  <div className="text-sm font-black text-emerald-400 mono">{data.latency_ms?.toFixed(0) || 0}ms</div>
+                </div>
+                <div className="p-3 bg-white/5 border border-white/10 rounded-xl">
+                  <div className="text-[9px] uppercase text-slate-400 font-bold mb-0.5">Consensus Status</div>
+                  <div className="text-sm font-black text-blue-400 mono">{data.status === 'complete' ? 'VERIFIED' : 'ACTIVE'}</div>
+                </div>
+                <div className="p-3 bg-white/5 border border-white/10 rounded-xl">
+                  <div className="text-[9px] uppercase text-slate-400 font-bold mb-0.5">Logged Entries</div>
+                  <div className="text-sm font-black text-amber-400 mono">{(data.logs || []).length} Recorded</div>
+                </div>
+              </div>
+
+              {/* Filter Tabs */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                {['ALL', 'LIBRARIAN', 'ARCHITECT', 'ANALYST', 'CRITIC', 'SYNTHESIZER'].map(st => (
+                  <button
+                    key={st}
+                    onClick={() => setSelectedStageFilter(st)}
+                    className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase mono tracking-wider transition-all cursor-pointer ${
+                      selectedStageFilter === st
+                        ? 'bg-blue-500 text-white shadow-md shadow-blue-500/20'
+                        : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-200 border border-white/5'
+                    }`}
+                  >
+                    {st}
+                  </button>
+                ))}
+              </div>
+
+              {/* Logs Stream */}
+              <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2 custom-scroll">
+                {(data.logs || [])
+                  .filter(l => selectedStageFilter === 'ALL' || l.stage?.toUpperCase() === selectedStageFilter)
+                  .map((logItem, idx) => {
+                    const stageColor = {
+                      librarian: 'border-purple-500/30 text-purple-400 bg-purple-500/10',
+                      architect: 'border-amber-500/30 text-amber-400 bg-amber-500/10',
+                      analyst: 'border-cyan-500/30 text-cyan-400 bg-cyan-500/10',
+                      critic: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10',
+                      synthesizer: 'border-blue-500/30 text-blue-400 bg-blue-500/10'
+                    }[logItem.stage?.toLowerCase()] || 'border-slate-500/30 text-slate-400 bg-slate-500/10';
+
+                    return (
+                      <div
+                        key={idx}
+                        className="p-4 rounded-xl bg-black/40 border border-white/10 hover:border-blue-500/30 transition-all"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${stageColor}`}>
+                              {logItem.stage}
+                            </span>
+                            <span className="text-[10px] text-slate-500 mono">Entry #{idx + 1}</span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(JSON.stringify(logItem.output, null, 2));
+                              setCopiedIndex(idx);
+                              setTimeout(() => setCopiedIndex(null), 2000);
+                            }}
+                            className="text-[10px] text-slate-400 hover:text-slate-200 flex items-center gap-1 cursor-pointer"
+                          >
+                            <Copy size={11} />
+                            {copiedIndex === idx ? 'Copied' : 'Copy'}
+                          </button>
+                        </div>
+                        <pre className="p-3 bg-black/60 rounded-lg text-[11px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap leading-relaxed border border-white/5 max-h-48 custom-scroll">
+                          {typeof logItem.output === 'object'
+                            ? JSON.stringify(logItem.output, null, 2)
+                            : String(logItem.output)}
+                        </pre>
+                      </div>
+                    );
+                  })}
+
+                {(data.logs || []).length === 0 && (
+                  <div className="text-center py-12 text-slate-500 italic text-sm">
+                    No audit logs recorded for this execution run.
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="mt-6 pt-4 border-t border-white/10 flex justify-end">
+                <button
+                  onClick={() => setShowAuditModal(false)}
+                  className="px-5 py-2 bg-white/10 hover:bg-white/15 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+                >
+                  Close Audit Trail
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 };
 

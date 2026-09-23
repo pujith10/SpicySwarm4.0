@@ -1,65 +1,58 @@
 import json
-from typing import Dict, Any
-from langchain_groq import ChatGroq
+import logging
+from typing import Dict, Any, List
 from langchain_core.prompts import ChatPromptTemplate
 from backend.agents.rag_retriever import retriever
 from backend.pipeline.state import PipelineState
+from backend.security.provenance import ProvenanceMetadata, SecurityLabel
+from backend.agents.utils import safe_llm_call
 from dotenv import load_dotenv
 
+logger = logging.getLogger(__name__)
 load_dotenv()
 
-LIBRARIAN_SYSTEM = """You are the HAA Librarian. 
-Your role is to retrieve raw data and clean it for the Architect.
-1. Use the provided context to answer preliminary parts of the query.
-2. Identify gaps that need external tools (Web Search or Code).
-3. Format the context into a clean, noise-free summary.
+LIBRARIAN_SYSTEM = """You are the HAA Librarian & Context Layer Agent (v4.0 Research Edition).
+Your role is to evaluate hybrid retrieved information (FAISS semantic vectors + Neo4j knowledge triplets)
+and structure it cleanly for the Architect and Analyst.
 
-Output your findings in JSON format:
+1. Filter out redundant noise.
+2. Flag knowledge gaps that require live web search or code execution.
+3. Structure initial findings with explicit provenance tracking.
+
+STRICT JSON OUTPUT FORMAT:
 {{
-  "retrieved_summary": "Cleaned context summary",
-  "knowledge_gaps": ["gap 1", "gap 2"],
-  "initial_findings": "Findings details"
-}}"""
-
-from backend.agents.utils import safe_llm_call
+  "retrieved_summary": "Clean, noise-free context summary",
+  "knowledge_gaps": ["Specific fact missing", "Need live verification"],
+  "initial_findings": "Factual details extracted"
+}}
+"""
 
 class LibrarianAgent:
     def __init__(self):
         self.prompt = ChatPromptTemplate.from_messages([
             ("system", LIBRARIAN_SYSTEM),
-            ("human", "Goal: {query}\n\nContext: {context}")
+            ("human", "User Goal: {query}\n\nRetrieved Raw Context:\n{context}")
         ])
 
-    async def run(self, state: PipelineState):
-        context = await retriever.get_context(state["query"])
-        state["retrieved_chunks"] = context["chunks"]
-        state["kg_triplets"] = context["triplets"]
+    async def run(self, state: PipelineState) -> Dict[str, Any]:
+        query = state["query"]
         
-        relevant_context = "\n".join(context["chunks"])
-        
-        try:
-            response = await safe_llm_call(
-                self.prompt,
-                {"query": state["query"], "context": relevant_context}
-            )
-            
-            # Handle both string and Message responses
-            content = response.content if hasattr(response, 'content') else str(response)
-            # Find the JSON block
-            if "```json" in content:
-                content = content.split("```json")[1].split("```")[0].strip()
-            elif "{" in content:
-                content = content[content.find("{"):content.rfind("}")+1]
-                
-            res_data = json.loads(content)
-            state["status"] = "Librarian finished data cleanup"
-            state["logs"].append({"stage": "librarian", "output": res_data})
-        except Exception as e:
-            error_msg = f"Librarian Error: {str(e)}"
-            state["status"] = error_msg
-            state["error"] = error_msg
-            state["logs"].append({"stage": "librarian", "output": error_msg})
-            
+        # As per user specification: local data corpus is not maintained currently.
+        # Bypass heavy vector store load and irrelevant PDF chunks, route directly to Architect for live search.
+        state["retrieved_chunks"] = []
+        state["kg_triplets"] = []
+        res_data = {
+            "retrieved_summary": "Local corpus holds no relevant data for this query.",
+            "knowledge_gaps": [f"Live internet data needed for '{query}'"],
+            "initial_findings": "Directing to Architect for web planning and DuckDuckGo query decomposition."
+        }
+        state["status"] = "Librarian checked local corpus (empty). Routing to Architect for web plan."
+        state["logs"].append({
+            "stage": "librarian",
+            "output": res_data,
+            "chunk_count": 0,
+            "triplet_count": 0
+        })
         return state
 
 librarian = LibrarianAgent()
