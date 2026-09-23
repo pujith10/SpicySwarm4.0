@@ -1,8 +1,11 @@
 .env
 node_modules/
 venv/
+.venv/
 __pycache__/
 *.pyc
 .DS_Store
 *.db
+*.log
 backend_log.txt
+.env.example
