@@ -1,8 +1,10 @@
 import json
 import asyncio
 import logging
+import os
 from typing import Dict, Any, List
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
 from backend.pipeline.state import PipelineState
 from backend.security.provenance import ProvenanceMetadata, SecurityLabel
 from backend.security.capabilities import capability_manager, RiskLevel
@@ -24,28 +26,53 @@ def _clean_query(query: str) -> str:
     words = [w for w in query.split() if w.lower() not in skip]
     return " ".join(words[:5])
 
-def _fetch_openmeteo_weather_fallback(query: str) -> str:
-    q_lower = query.lower()
-    if "weather" in q_lower or "delhi" in q_lower or "temperature" in q_lower or "forecast" in q_lower:
+def _fetch_openrouter_knowledge_fallback(query: str) -> str:
+    """
+    Auxiliary LLM Knowledge Fallback for Web Scraper Blocking:
+    When web scraping or anti-bot protections (Cloudflare, CAPTCHA) block external
+    site extraction, queries a distinct free model on OpenRouter
+    ('meta-llama/llama-3.3-70b-instruct:free') which is NOT assigned to any of the 5 agents.
+    Synthesizes empirical and factual knowledge across general research topics.
+    """
+    api_key = os.getenv("OPENROUTER_API_KEY", "").strip()
+    if not api_key:
+        return ""
+    base_url = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+    
+    # Free OpenRouter models completely distinct from the primary 5 agents (which use nvidia/nemotron-3-ultra-550b-a55b:free)
+    fallback_models = [
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "qwen/qwen-2.5-72b-instruct:free",
+        "meta-llama/llama-3.1-8b-instruct:free",
+    ]
+    for model_id in fallback_models:
         try:
-            url = "https://api.open-meteo.com/v1/forecast?latitude=28.6139&longitude=77.2090&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min&timezone=Asia%2FKolkata"
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"})
-            with urllib.request.urlopen(req, timeout=1.8) as resp:
-                data = json.loads(resp.read().decode())
-                c = data.get("current", {})
-                d = data.get("daily", {})
-                t_max = d.get("temperature_2m_max", ["34"])[0]
-                t_min = d.get("temperature_2m_min", ["24"])[0]
-                return (
-                    f"Verified Live Weather Telemetry (Delhi, IMD Region):\n"
-                    f"- Current Temperature: {c.get('temperature_2m')}°C\n"
-                    f"- Today's Forecast High: {t_max}°C / Low: {t_min}°C\n"
-                    f"- Relative Humidity: {c.get('relative_humidity_2m')}%\n"
-                    f"- Wind Speed: {c.get('wind_speed_10m')} km/h\n"
-                    f"- General Condition: Fair/Clear (Weather Code: {c.get('weather_code')})"
-                )
-        except Exception:
-            return ""
+            llm = ChatOpenAI(
+                model=model_id,
+                api_key=api_key,
+                base_url=base_url,
+                temperature=0.1,
+                timeout=15,
+                max_tokens=1500,
+                default_headers={
+                    "HTTP-Referer": "http://localhost:5173",
+                    "X-Title": "Spicy Swarm 4.0 - Scraper Fallback",
+                }
+            )
+            prompt = (
+                f"You are an auxiliary research knowledge fallback agent. "
+                f"Candidate web scrapers were blocked by anti-bot protections while researching: '{query}'. "
+                f"Provide a comprehensive, factual, objective summary and verified empirical data points answering this query "
+                f"so the research pipeline has reliable empirical information to analyze."
+            )
+            response = llm.invoke(prompt)
+            content = response.content if hasattr(response, "content") else str(response)
+            if content and len(content.strip()) > 30:
+                logger.info(f"Scraper fallback successfully synthesized knowledge via OpenRouter [{model_id}]")
+                return content.strip()
+        except Exception as e:
+            logger.warning(f"OpenRouter scraper fallback error for [{model_id}]: {e}")
+            continue
     return ""
 
 def _sync_scrape_website(url: str, timeout: float = 4.0) -> str:
@@ -142,14 +169,15 @@ async def run_resilient_web_scrape(
             })
             seen_in_batch.add(c["url"])
 
-    # Fallback to telemetry sensor for weather queries if all sites were blocked
-    if not results and ("weather" in query.lower() or "delhi" in query.lower()):
-        sensor_data = _fetch_openmeteo_weather_fallback(query)
-        if sensor_data:
+    # Universal fallback if all candidate websites blocked scrapers or returned empty results:
+    if not results:
+        logger.info(f"Scrapers blocked or 0 results for '{query}'. Invoking OpenRouter auxiliary knowledge fallback...")
+        fallback_content = await asyncio.to_thread(_fetch_openrouter_knowledge_fallback, query)
+        if fallback_content:
             results.append({
-                "url": "https://api.open-meteo.com/v1/forecast?delhi_imd",
-                "title": "Open-Meteo IMD Verified Delhi Telemetry",
-                "content": sensor_data,
+                "url": "https://openrouter.ai/models/meta-llama/llama-3.3-70b-instruct:free?fallback=scraper_blocked",
+                "title": f"Auxiliary Knowledge Synthesis (LLM Fallback: {query[:40]})",
+                "content": fallback_content,
                 "loop": current_loop
             })
 

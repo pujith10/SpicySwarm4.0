@@ -52,12 +52,12 @@ graph TD
     subgraph Isolated Tool Handlers
         Executor --> SearchTool[Web Scrape / DuckDuckGo API]
         Executor --> SafeSandbox[SafePythonSandbox: AST-Inspected Math]
-        Executor --> LiveWeather[OpenMeteo Telemetry Fallback]
+        Executor --> OpenRouterFallback[OpenRouter Auxiliary Knowledge Fallback]
     end
 
     SearchTool --> Critic{4. Critic / Validator Audit Gate}
     SafeSandbox --> Critic
-    LiveWeather --> Critic
+    OpenRouterFallback --> Critic
 
     Critic -- "Factual Gap / Runtime Error (Loop < 7)" --> Planner
     Critic -- "Convergence Achieved (PASS)" --> Synthesizer[5. Synthesizer: Final Technical Report]
