@@ -9,3 +9,4 @@ __pycache__/
 *.log
 backend_log.txt
 .env.example
+SpicySwarm4_Paper.tex

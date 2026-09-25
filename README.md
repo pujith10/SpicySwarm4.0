@@ -122,7 +122,7 @@ SpicySwarm 4.0 has been evaluated against three premier multi-agent frameworks a
 |:---|:---:|:---:|:---:|
 | **SpicySwarm 4.0 Survival Rate** | **100.0%** (20/20) | **100.0%** (20/20) | **100.0%** (20/20) |
 | **AutoGen Survival Rate** | **100.0%** (20/20) | **0.0%** (0/20) | **0.0%** (0/20) |
-| **SpicySwarm 4.0 Failover Latency** | N/A | Mean: **6.62s** \| Median: **6.60s** | Mean: **6.61s** \| Median: **6.63s** |
+| **SpicySwarm 4.0 Failover Latency** | N/A | Mean: **6.63s** \| Median: **6.62s** (P95: 7.34s) | Mean: **6.60s** \| Median: **6.64s** (P95: 7.20s) |
 | **AutoGen Crashes (`RateLimitError`)** | 0 | 20 crashes | 20 crashes |
 | **SpicySwarm Crashes** | **0** | **0** | **0** |
 

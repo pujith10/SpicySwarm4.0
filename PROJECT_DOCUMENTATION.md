@@ -338,3 +338,6 @@ SCRUBBING_ENABLED=true
    - Navigate to `http://localhost:5173` (or the active Vite port).
    - Enter your query (e.g. *"What did Anthropic and OpenAI announce in June 2026?"* or *"Delhi weather forecast and AQI breakdown"*).
    - Watch the 5-node agent graph execute live, scrape real-time websites, audit the evidence, and render the final conversational answer with clickable citations and interactive graphs.
+
+
+***Note: this is the documentation which is not updated with latest changes***
